@@ -24,8 +24,15 @@ generate_button = st.button("🚀 スカウト文を生成")
 # --- Google Driveからドキュメント取得関数 ---
 def find_doc_content_by_keyword(keyword: str):
     SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-    creds = service_account.Credentials.from_service_account_file(
-        "service_account.json", scopes=SCOPES)
+    import json
+    import streamlit as st
+    from google.oauth2 import service_account
+
+    # secrets に登録した JSON文字列を読み込む
+    raw_json = st.secrets["SERVICE_ACCOUNT_JSON"]
+    creds_dict = json.loads(raw_json)
+    creds = service_account.Credentials.from_service_account_info(creds_dict)
+
     drive_service = build('drive', 'v3', credentials=creds)
     query = f"mimeType='application/vnd.google-apps.document' and name contains '{keyword}'"
     results = drive_service.files().list(q=query, fields="files(id, name)", pageSize=5).execute()
