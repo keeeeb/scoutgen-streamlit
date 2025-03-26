@@ -15,9 +15,10 @@ openai_api_key = st.text_input("🔑 OpenAI API Key", type="password")
 
 # --- 入力欄 ---
 candidate_profile = st.text_area("📄 候補者プロフィールを貼ってください")
-fishing_company_1 = st.text_input("🏢 釣り求人①に含まれる企業名")
-fishing_company_2 = st.text_input("🏢 釣り求人②に含まれる企業名")
-fishing_company_3 = st.text_input("🏢 釣り求人③に含まれる企業名")
+fishing_job_1 = st.text_input("🎯 釣り求人①（社名_求人タイトル）")
+fishing_job_2 = st.text_input("🎯 釣り求人②（社名_求人タイトル）")
+fishing_job_3 = st.text_input("🎯 釣り求人③（社名_求人タイトル）")
+contact_person = st.text_input("🧑‍💼 スカウト送信者名（署名に表示）")
 generate_button = st.button("🚀 スカウト文を生成")
 
 # --- Google Driveからドキュメント取得関数 ---
@@ -50,23 +51,24 @@ def find_doc_content_by_keyword(keyword: str):
     return cleaned
 
 # --- スカウト文生成プロンプト ---
-def build_prompt(profile, rag_summary):
+def build_prompt(profile, rag_summary, jobs, sender):
+    jobs_bullet = "\n".join([f"★{j}\n∟▶︎（この求人の魅力・強み・ポジション情報をWeb検索した前提でキャッチーに訴求）" for j in jobs if j])
+
     return f"""
-以下の候補者プロフィール、釣り求人情報、テンプレート文、企業ナレッジ（RAG）をもとに、
-必ず件名と本文を生成してください。
+以下の情報をもとに、候補者向けのスカウト文（件名＋本文）を生成してください。
 
 【候補者プロフィール】
 {profile}
 
-【テンプレート件名】
-【戦略視点で動くセールスへ】日本を代表する大企業の経営戦略に入り込むコンサルタント#年収770〜1350万円
+【釣り求人（キャッチーに訴求すること）】
+{jobs_bullet}
 
-【テンプレート本文冒頭】
+【テンプレート固定文頭】
 ━━━━━━━━━━━━━━━━━━━━━
 あなたの次のキャリアステップを、私たちと共に。
 ━━━━━━━━━━━━━━━━━━━━━
 
-こんにちは、SIESTA代表の久保です。
+こんにちは、SIESTA代表の{sender}です。
 
 あなたの実績と経歴に拝読し、あなたの市場価値を弊社がコミットすればさらに高められると考えオファーメールをお送りさせていただきました。
 
@@ -75,32 +77,32 @@ def build_prompt(profile, rag_summary):
 【企業ナレッジ（RAG）】
 {rag_summary}
 
-必ず上記内容を活用し、自然に馴染ませて件名（50文字以内）と本文（1800文字前後）を日本語で生成してください。
 【出力形式】
 件名：◯◯◯◯
 本文：
-◯◯◯◯
+
+◯◯◯◯（1800文字前後）
 """
 
 # --- メイン処理 ---
 if generate_button and openai_api_key and candidate_profile:
-    # RAG取得
-    summary_list = []
-    for keyword in [fishing_company_1, fishing_company_2, fishing_company_3]:
+    rag_summary = ""
+    for keyword in [fishing_job_1, fishing_job_2, fishing_job_3]:
         if keyword:
             st.info(f"🔍 {keyword} の情報を取得中...")
             content = find_doc_content_by_keyword(keyword)
             if content:
-                summary_list.append(f"【{keyword}】\n{content.strip()}\n")
-    rag_summary = "\n\n".join(summary_list)
+                rag_summary += f"【{keyword}】\n{content}\n\n"
 
     if rag_summary:
         with st.expander("🔍 取得した企業ナレッジ（RAG）"):
             st.markdown(rag_summary)
 
+    jobs = [fishing_job_1, fishing_job_2, fishing_job_3]
+
     st.info("🤖 GPTで文面生成中...")
     llm = ChatOpenAI(model_name="gpt-4o", temperature=0.7, openai_api_key=openai_api_key)
-    prompt = build_prompt(candidate_profile, rag_summary)
+    prompt = build_prompt(candidate_profile, rag_summary, jobs, contact_person)
     messages = [
         SystemMessage(content="あなたはハイクラス人材にスカウト文を作成するプロです。"),
         HumanMessage(content=prompt)
