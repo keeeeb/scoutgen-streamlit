@@ -8,10 +8,10 @@ import re
 import os
 
 # --- ページ設定 ---
-st.set_page_config(page_title="RAGスカウト文ジェネレーター", layout="centered")
-st.title("🧠 RAG × スカウトテンプレ自動生成")
+st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.0", layout="centered")
+st.title("🧠 RAG × スカウトテンプレ自動生成 v3.0")
 
-# --- OpenAI APIキー（secretsから取得） ---
+# --- OpenAI APIキー ---
 openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
 # --- 入力欄 ---
@@ -53,40 +53,41 @@ def find_doc_content_by_keyword(keyword: str):
 
 # --- スカウト文生成プロンプト ---
 def build_prompt(profile, rag_summary, jobs, sender):
-    jobs_bullet = "\n".join([f"★{j}\n∟▶︎（この求人の魅力・強み・ポジション情報をWeb検索した前提でキャッチーに訴求）" for j in jobs if j])
+    jobs_bullet = "\n".join([f"★{j}\n∟▶︎（この求人の魅力・強み・ポジション情報をWeb検索済みと仮定してキャッチーに要約）" for j in jobs if j])
 
     return f"""
-以下の情報をもとに、過去のスカウト文の構造やトーンを踏襲しながら、候補者向けのスカウト文（件名＋本文）を生成してください。
+以下の構造・ルールに沿って、件名と本文を生成してください。
 
-【過去のスカウト文の特徴】
-- 文頭にキャリアの次ステップを連想させる一文
-- SIESTA代表によるシンプルな自己紹介（文頭のみ）
-- スカウト送信の理由（経歴への共感、市場価値向上支援）
-- 『上位1％』『完全支援』『年収UP実績』などの訴求要素を中盤に配置
-- 魅力的な求人（釣り求人）をキャッチーに紹介し、ポジション年収を含める
-- 文末は連絡を促す控えめかつ前向きな一文 + 担当者署名で締める
+【スカウト文構造】
+1. キャッチ：上位1%、年収UP、成長企業などで冒頭を印象づける（1文）
+2. 自己紹介：{sender}の紹介は1文以内（端的に）
+3. スカウト理由：候補者のプロフィール内容に共感・評価する文（2〜3文）
+4. SIESTAの支援内容・実績：上位1%転職、完全支援、年収UP実績などを強く打ち出す
+5. 釣り求人3件：キャッチーに訴求（社名＋魅力＋ポジション＋年収など）
+6. 締め：カジュアル面談や情報交換など前向きな締め（押しすぎず）
+7. 署名：SIESTA代表 {sender} として文末に固定
 
 【候補者プロフィール】
 {profile}
 
-【釣り求人（キャッチーに訴求すること）】
+【釣り求人（Web検索済と仮定）】
 {jobs_bullet}
 
-【企業ナレッジ（RAG抽出内容）】
+【RAGで取得した企業情報】
 {rag_summary}
-
-【テンプレート冒頭】
-━━━━━━━━━━━━━━━━━━━━━
-あなたの次のキャリアステップを、私たちと共に。
-━━━━━━━━━━━━━━━━━━━━━
-
-こんにちは、SIESTA代表の{sender}です。
 
 【出力形式】
 件名：◯◯◯◯
 本文：
 
+━━━━━━━━━━━━━━━━━━━━━
+あなたの次のキャリアステップを、私たちと共に。
+━━━━━━━━━━━━━━━━━━━━━
+
 ◯◯◯◯（1800文字前後）
+━━━━━━━━━━━━━━━━━━━━━
+{sender}｜SIESTA代表
+━━━━━━━━━━━━━━━━━━━━━
 """
 
 # --- メイン処理 ---
@@ -109,7 +110,7 @@ if generate_button and openai_api_key and candidate_profile:
     llm = ChatOpenAI(model_name="gpt-4o", temperature=0.7, openai_api_key=openai_api_key)
     prompt = build_prompt(candidate_profile, rag_summary, jobs, contact_person)
     messages = [
-        SystemMessage(content="あなたはハイクラス人材にスカウト文を作成するプロです。"),
+        SystemMessage(content="あなたはプロのスカウト文作成エージェントです。構成、トーン、訴求軸を厳密に守ってください。"),
         HumanMessage(content=prompt)
     ]
     response = llm(messages)
