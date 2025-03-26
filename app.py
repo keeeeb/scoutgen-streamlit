@@ -9,8 +9,8 @@ import os
 import requests
 
 # --- ページ設定 ---
-st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.3", layout="centered")
-st.title("🧠 RAG × スカウトテンプレ自動生成 v3.3")
+st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.4")
+st.title("🧠 RAG × スカウトテンプレ自動生成 v3.4")
 
 # --- APIキー ---
 openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
