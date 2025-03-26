@@ -1,5 +1,5 @@
 streamlit
 openai
-langchain
+langchain==0.0.340
 google-api-python-client
 google-auth
