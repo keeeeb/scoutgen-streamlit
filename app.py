@@ -5,13 +5,14 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import json
 import re
+import os
 
 # --- ページ設定 ---
 st.set_page_config(page_title="RAGスカウト文ジェネレーター", layout="centered")
 st.title("🧠 RAG × スカウトテンプレ自動生成")
 
-# --- OpenAI APIキー入力 ---
-openai_api_key = st.text_input("🔑 OpenAI API Key", type="password")
+# --- OpenAI APIキー（secretsから取得） ---
+openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
 # --- 入力欄 ---
 candidate_profile = st.text_area("📄 候補者プロフィールを貼ってください")
@@ -118,4 +119,4 @@ if generate_button and openai_api_key and candidate_profile:
     st.markdown(response.content)
 
 elif generate_button and not openai_api_key:
-    st.error("OpenAI API Key を入力してください")
+    st.error("OpenAI API Key を環境変数またはSecretsに設定してください")
