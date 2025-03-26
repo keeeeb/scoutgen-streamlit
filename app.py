@@ -9,8 +9,8 @@ import os
 import requests
 
 # --- ページ設定 ---
-st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.2", layout="centered")
-st.title("🧠 RAG × スカウトテンプレ自動生成 v3.2")
+st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.3", layout="centered")
+st.title("🧠 RAG × スカウトテンプレ自動生成 v3.3")
 
 # --- APIキー ---
 openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -76,31 +76,33 @@ def build_prompt(profile, rag_summary, serp_summary, jobs, sender):
     jobs_bullet = "\n".join([f"★{j}" for j in jobs if j])
 
     return f"""
-以下の構造・ルールに従ってスカウト文（件名＋本文）を生成してください：
+あなたは超一流のスカウトライターです。
+以下の情報と構造を厳守し、候補者が「応募したくなる」「話を聞きたくなる」件名＋本文を生成してください。
 
-【スカウト文構造】
-1. キャッチ：上位1%、年収UP、成長企業などで冒頭を印象づける（1文）
-2. 自己紹介：{sender}の紹介は1文以内（端的に）
-3. スカウト理由：候補者プロフィールに共感・評価（2〜3文）
-4. SIESTAの支援内容・実績：上位1%転職、完全支援、年収UP実績など
-5. 魅力的な釣り求人3件：Web検索結果の要素と候補者の経歴を掛け合わせて訴求
-6. 締め：カジュアルな面談や情報交換の呼びかけ
-7. 署名：SIESTA代表 {sender} として文末に固定
+【スカウト文構造（固定）】
+1. 件名：候補者のキャリア視点から惹かれる表現。年収・裁量・成長市場などを含めて最大50文字
+2. 冒頭："あなたの次のキャリアステップを、私たちと共に。"
+3. 自己紹介：{sender}｜SIESTA代表（短く）
+4. スカウト理由：候補者のプロフィール内容をふまえた共感・称賛（2〜3文）
+5. SIESTAの支援内容と実績訴求：上位1%、完全支援、年収UP事例（具体例含む）
+6. 釣り求人（3社）：Web検索結果（serp）と候補者プロフィールを照合して、「あなたの◯◯経験がここで活かせる」などと自然に訴求
+7. 締め：カジュアルな面談誘導、前向きで控えめなトーン
+8. 署名：━━━━━━━━━━━━━━━━━━━━━\n{sender}｜SIESTA代表\n━━━━━━━━━━━━━━━━━━━━━
 
 【候補者プロフィール】
 {profile}
 
-【釣り求人（入力名）】
+【釣り求人（入力内容）】
 {jobs_bullet}
 
 【釣り求人の検索結果（SerpAPI）】
 {serp_summary}
 
-【社内企業ナレッジ（RAG）】
+【Driveから取得した企業ナレッジ（RAG）】
 {rag_summary}
 
 【出力形式】
-件名：◯◯◯◯
+件名：◯◯◯◯（50文字以内）
 本文：
 
 ━━━━━━━━━━━━━━━━━━━━━
@@ -139,7 +141,7 @@ if generate_button and openai_api_key and candidate_profile:
             st.markdown(rag_summary)
 
     st.info("🤖 GPTで文面生成中...")
-    llm = ChatOpenAI(model_name="gpt-4o", temperature=0.7, openai_api_key=openai_api_key)
+    llm = ChatOpenAI(model_name="gpt-4o", temperature=0.7, openai_api_key=openai_api_key, max_tokens=1800)
     prompt = build_prompt(candidate_profile, rag_summary, serp_summary, jobs, contact_person)
     messages = [
         SystemMessage(content="あなたはプロのスカウト文作成エージェントです。構成、トーン、訴求軸を厳密に守ってください。"),
