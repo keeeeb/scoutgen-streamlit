@@ -28,7 +28,7 @@ def find_doc_content_by_keyword(keyword: str):
     creds_dict = json.loads(raw_json)
     creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     drive_service = build('drive', 'v3', credentials=creds)
-    query = f"mimeType='application/vnd.google-apps.document' and name contains '{keyword}'"
+    query = f"mimeType='application/vnd.google-apps.document' and name contains '{keyword.split('_')[0]}'"
     results = drive_service.files().list(q=query, fields="files(id, name)", pageSize=5).execute()
     files = results.get('files', [])
 
@@ -55,7 +55,15 @@ def build_prompt(profile, rag_summary, jobs, sender):
     jobs_bullet = "\n".join([f"★{j}\n∟▶︎（この求人の魅力・強み・ポジション情報をWeb検索した前提でキャッチーに訴求）" for j in jobs if j])
 
     return f"""
-以下の情報をもとに、候補者向けのスカウト文（件名＋本文）を生成してください。
+以下の情報をもとに、過去のスカウト文の構造やトーンを踏襲しながら、候補者向けのスカウト文（件名＋本文）を生成してください。
+
+【過去のスカウト文の特徴】
+- 文頭にキャリアの次ステップを連想させる一文
+- SIESTA代表によるシンプルな自己紹介（文頭のみ）
+- スカウト送信の理由（経歴への共感、市場価値向上支援）
+- 『上位1％』『完全支援』『年収UP実績』などの訴求要素を中盤に配置
+- 魅力的な求人（釣り求人）をキャッチーに紹介し、ポジション年収を含める
+- 文末は連絡を促す控えめかつ前向きな一文 + 担当者署名で締める
 
 【候補者プロフィール】
 {profile}
@@ -63,19 +71,15 @@ def build_prompt(profile, rag_summary, jobs, sender):
 【釣り求人（キャッチーに訴求すること）】
 {jobs_bullet}
 
-【テンプレート固定文頭】
+【企業ナレッジ（RAG抽出内容）】
+{rag_summary}
+
+【テンプレート冒頭】
 ━━━━━━━━━━━━━━━━━━━━━
 あなたの次のキャリアステップを、私たちと共に。
 ━━━━━━━━━━━━━━━━━━━━━
 
 こんにちは、SIESTA代表の{sender}です。
-
-あなたの実績と経歴に拝読し、あなたの市場価値を弊社がコミットすればさらに高められると考えオファーメールをお送りさせていただきました。
-
-私たちと共に、【上位1％】に入るキャリアの高みを目指しませんか？
-
-【企業ナレッジ（RAG）】
-{rag_summary}
 
 【出力形式】
 件名：◯◯◯◯
