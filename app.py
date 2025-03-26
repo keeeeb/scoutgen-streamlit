@@ -15,7 +15,9 @@ openai_api_key = st.text_input("🔑 OpenAI API Key", type="password")
 
 # --- 入力欄 ---
 candidate_profile = st.text_area("📄 候補者プロフィールを貼ってください")
-fishing_company = st.text_input("🏢 釣り求人に含まれる企業名（例：キャディ）")
+fishing_company_1 = st.text_input("🏢 釣り求人①に含まれる企業名")
+fishing_company_2 = st.text_input("🏢 釣り求人②に含まれる企業名")
+fishing_company_3 = st.text_input("🏢 釣り求人③に含まれる企業名")
 generate_button = st.button("🚀 スカウト文を生成")
 
 # --- Google Driveからドキュメント取得関数 ---
@@ -48,28 +50,18 @@ def find_doc_content_by_keyword(keyword: str):
     return cleaned
 
 # --- スカウト文生成プロンプト ---
-def build_prompt(profile, rag_context):
+def build_prompt(profile, rag_summary):
     return f"""
-以下の候補者プロフィール、釣り求人情報、社内のテンプレート文、企業ナレッジ（RAG）をもとに、候補者の経歴・希望とマッチする件名と本文を生成してください。
+以下の候補者プロフィール、釣り求人情報、テンプレート文、企業ナレッジ（RAG）をもとに、
+必ず件名と本文を生成してください。
 
 【候補者プロフィール】
 {profile}
 
-【釣り求人情報（3社）】
-★ユーザベース［経営戦略を“現場から動かす”情報プラットフォームSaaSを展開］
-∟⽇本を代表する大企業の“経営戦略”に入り込み、複数プロダクトを駆使して課題を解決するセールス兼BizDev［年収756〜1350万円］
-
-★エクサウィザーズ［生成AI導入ソリューション市場シェアNo.1｜AI×SaaSの新規事業を牽引］
-∟"誰も経験したことのない営業を。"生成AI×SaaSの国内No.1を目指し、ARR11億円達成のプロダクト拡販・事業開発を担うセールス［年収〜960万円］
-
-★キャディ［“日本発グローバル×製造業DX”を本気で実現するSaaSスタートアップ］
-∟製造業のGoogleをつくる。巨大データを活かしたBizDevセールス［年収770〜1600万円＋SO］
-
-【テンプレート文】
-件名：
+【テンプレート件名】
 【戦略視点で動くセールスへ】日本を代表する大企業の経営戦略に入り込むコンサルタント#年収770〜1350万円
 
-本文：
+【テンプレート本文冒頭】
 ━━━━━━━━━━━━━━━━━━━━━
 あなたの次のキャリアステップを、私たちと共に。
 ━━━━━━━━━━━━━━━━━━━━━
@@ -80,38 +72,39 @@ def build_prompt(profile, rag_context):
 
 私たちと共に、【上位1％】に入るキャリアの高みを目指しませんか？
 
-━━━━━━━━━━━━━━━━━━━━━
-━ 上位1%転職成功のための弊社独自の秘訣 ━
-━━━━━━━━━━━━━━━━━━━━━
-【1】弊社の完全支援で貴方の評価をアップさせる職務経歴書作成と面接対策（過去合格者の面接回答例等）。
-【2】それにより「複数の内定を最高評価で獲得」して、選択肢を増やしながら条件交渉を有利に進める。
-【3】元リクルートMVP営業が見出した貴方に有利な条件を獲得するための…
+【企業ナレッジ（RAG）】
+{rag_summary}
 
-【企業ナレッジ（RAG抽出）】
-{rag_context}
-
+必ず上記内容を活用し、自然に馴染ませて件名（50文字以内）と本文（1800文字前後）を日本語で生成してください。
 【出力形式】
-件名：◯◯◯◯（50文字以内）
+件名：◯◯◯◯
 本文：
-◯◯◯◯（1800文字前後）
+◯◯◯◯
 """
 
 # --- メイン処理 ---
 if generate_button and openai_api_key and candidate_profile:
-    rag_context = ""
-    if fishing_company:
-        st.info("🔍 Google Driveから企業ナレッジを取得中...")
-        rag_context = find_doc_content_by_keyword(fishing_company)
+    # RAG取得
+    summary_list = []
+    for keyword in [fishing_company_1, fishing_company_2, fishing_company_3]:
+        if keyword:
+            st.info(f"🔍 {keyword} の情報を取得中...")
+            content = find_doc_content_by_keyword(keyword)
+            if content:
+                summary_list.append(f"【{keyword}】\n{content.strip()}\n")
+    rag_summary = "\n\n".join(summary_list)
 
-    if rag_context:
-        with st.expander("🔍 取得した企業ナレッジ（RAG）を確認"):
-            st.markdown(rag_context)
+    if rag_summary:
+        with st.expander("🔍 取得した企業ナレッジ（RAG）"):
+            st.markdown(rag_summary)
 
     st.info("🤖 GPTで文面生成中...")
     llm = ChatOpenAI(model_name="gpt-4o", temperature=0.7, openai_api_key=openai_api_key)
-    prompt = build_prompt(candidate_profile, rag_context)
-    messages = [SystemMessage(content="あなたはハイクラス人材にスカウト文を作成するプロです。"),
-                HumanMessage(content=prompt)]
+    prompt = build_prompt(candidate_profile, rag_summary)
+    messages = [
+        SystemMessage(content="あなたはハイクラス人材にスカウト文を作成するプロです。"),
+        HumanMessage(content=prompt)
+    ]
     response = llm(messages)
 
     st.success("✅ スカウト文が生成されました")
