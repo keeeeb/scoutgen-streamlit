@@ -6,13 +6,15 @@ from googleapiclient.discovery import build
 import json
 import re
 import os
+import requests
 
 # --- ページ設定 ---
-st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.0", layout="centered")
-st.title("🧠 RAG × スカウトテンプレ自動生成 v3.0")
+st.set_page_config(page_title="RAGスカウト文ジェネレーター v3.2", layout="centered")
+st.title("🧠 RAG × スカウトテンプレ自動生成 v3.2")
 
-# --- OpenAI APIキー ---
+# --- APIキー ---
 openai_api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+serpapi_key = os.environ.get("SERPAPI_KEY") or st.secrets.get("SERPAPI_KEY")
 
 # --- 入力欄 ---
 candidate_profile = st.text_area("📄 候補者プロフィールを貼ってください")
@@ -51,29 +53,50 @@ def find_doc_content_by_keyword(keyword: str):
     cleaned = re.sub(r'\n{2,}', '\n\n', content.strip())
     return cleaned
 
-# --- スカウト文生成プロンプト ---
-def build_prompt(profile, rag_summary, jobs, sender):
-    jobs_bullet = "\n".join([f"★{j}\n∟▶︎（この求人の魅力・強み・ポジション情報をWeb検索済みと仮定してキャッチーに要約）" for j in jobs if j])
+# --- SerpAPIから検索結果取得 ---
+def get_serp_snippets(query):
+    url = "https://serpapi.com/search.json"
+    params = {
+        "q": query,
+        "hl": "ja",
+        "gl": "jp",
+        "api_key": serpapi_key
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    snippets = []
+    for res in data.get("organic_results", [])[:2]:
+        title = res.get("title", "")
+        snippet = res.get("snippet", "")
+        snippets.append(f"【{title}】\n{snippet}")
+    return "\n\n".join(snippets)
+
+# --- プロンプト生成 ---
+def build_prompt(profile, rag_summary, serp_summary, jobs, sender):
+    jobs_bullet = "\n".join([f"★{j}" for j in jobs if j])
 
     return f"""
-以下の構造・ルールに沿って、件名と本文を生成してください。
+以下の構造・ルールに従ってスカウト文（件名＋本文）を生成してください：
 
 【スカウト文構造】
 1. キャッチ：上位1%、年収UP、成長企業などで冒頭を印象づける（1文）
 2. 自己紹介：{sender}の紹介は1文以内（端的に）
-3. スカウト理由：候補者のプロフィール内容に共感・評価する文（2〜3文）
-4. SIESTAの支援内容・実績：上位1%転職、完全支援、年収UP実績などを強く打ち出す
-5. 釣り求人3件：キャッチーに訴求（社名＋魅力＋ポジション＋年収など）
-6. 締め：カジュアル面談や情報交換など前向きな締め（押しすぎず）
+3. スカウト理由：候補者プロフィールに共感・評価（2〜3文）
+4. SIESTAの支援内容・実績：上位1%転職、完全支援、年収UP実績など
+5. 魅力的な釣り求人3件：Web検索結果の要素と候補者の経歴を掛け合わせて訴求
+6. 締め：カジュアルな面談や情報交換の呼びかけ
 7. 署名：SIESTA代表 {sender} として文末に固定
 
 【候補者プロフィール】
 {profile}
 
-【釣り求人（Web検索済と仮定）】
+【釣り求人（入力名）】
 {jobs_bullet}
 
-【RAGで取得した企業情報】
+【釣り求人の検索結果（SerpAPI）】
+{serp_summary}
+
+【社内企業ナレッジ（RAG）】
 {rag_summary}
 
 【出力形式】
@@ -90,25 +113,34 @@ def build_prompt(profile, rag_summary, jobs, sender):
 ━━━━━━━━━━━━━━━━━━━━━
 """
 
-# --- メイン処理 ---
+# --- 実行ブロック ---
 if generate_button and openai_api_key and candidate_profile:
     rag_summary = ""
-    for keyword in [fishing_job_1, fishing_job_2, fishing_job_3]:
+    serp_summary = ""
+    jobs = [fishing_job_1, fishing_job_2, fishing_job_3]
+
+    for keyword in jobs:
         if keyword:
-            st.info(f"🔍 {keyword} の情報を取得中...")
+            st.info(f"🔍 {keyword} の企業ナレッジを取得中...")
             content = find_doc_content_by_keyword(keyword)
             if content:
                 rag_summary += f"【{keyword}】\n{content}\n\n"
+            st.info(f"🌐 {keyword} をWeb検索中...")
+            serp = get_serp_snippets(keyword)
+            if serp:
+                serp_summary += f"【{keyword}】\n{serp}\n\n"
+
+    if serp_summary:
+        with st.expander("🌐 Web検索結果（SerpAPI）"):
+            st.markdown(serp_summary)
 
     if rag_summary:
-        with st.expander("🔍 取得した企業ナレッジ（RAG）"):
+        with st.expander("📂 Driveナレッジ（RAG）"):
             st.markdown(rag_summary)
-
-    jobs = [fishing_job_1, fishing_job_2, fishing_job_3]
 
     st.info("🤖 GPTで文面生成中...")
     llm = ChatOpenAI(model_name="gpt-4o", temperature=0.7, openai_api_key=openai_api_key)
-    prompt = build_prompt(candidate_profile, rag_summary, jobs, contact_person)
+    prompt = build_prompt(candidate_profile, rag_summary, serp_summary, jobs, contact_person)
     messages = [
         SystemMessage(content="あなたはプロのスカウト文作成エージェントです。構成、トーン、訴求軸を厳密に守ってください。"),
         HumanMessage(content=prompt)
